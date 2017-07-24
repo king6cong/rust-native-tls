@@ -8,6 +8,7 @@ use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::Pkcs12ImportOptions;
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
+#[cfg(target_os = "macos")]
 use self::security_framework::os::macos::keychain::{self, KeychainSettings};
 use self::security_framework_sys::base::errSecIO;
 use self::tempdir::TempDir;
@@ -84,18 +85,30 @@ impl Pkcs12 {
             Err(_) => return Err(Error(base::Error::from(errSecIO))),
         };
 
+        #[cfg(target_os = "macos")]
         let mut keychain = try!(keychain::CreateOptions::new().password(pass).create(
             dir.path().join("tmp.keychain"),
         ));
+
+        #[cfg(target_os = "macos")]
         // disable lock on sleep and timeouts
         try!(keychain.set_settings(&KeychainSettings::new()));
 
+        #[cfg(target_os = "macos")]
         let mut imports = try!(
             Pkcs12ImportOptions::new()
                 .passphrase(pass)
                 .keychain(keychain)
                 .import(buf)
         );
+
+        #[cfg(target_os = "ios")]
+        let mut imports = try!(
+            Pkcs12ImportOptions::new()
+                .passphrase(pass)
+                .import(buf)
+        );
+
         let import = imports.pop().unwrap();
 
         // FIXME: Compare the certificates for equality using CFEqual
